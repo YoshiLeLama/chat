@@ -1,29 +1,41 @@
 use std::net::{TcpListener, TcpStream};
 use std::io::{Write, BufReader, BufRead};
 
-static CONTENT: &str = "<html><head><meta charset=\"utf-8\"><title>Hello World</title></head><body><h1>Hello World</h1></body></html>";
-static CONTENT_LENGTH: usize = CONTENT.len();
+use chat_server::generate_auth_token;
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, auth_token: &str) {
     let buf_reader = BufReader::new(&mut stream);
-    let request_line = buf_reader.lines().next().expect("HTTP request message is empty").expect("Error reading the request line");
+    let mut lines = buf_reader.lines();
+    let request_line = lines.next().expect("HTTP request message is empty").expect("Error reading the request line");
 
-    for word in request_line.split_whitespace() {
-        println!("{}", word);
+    println!("{}", request_line);
+
+    match &request_line[..] {
+        "AUTHENTICATE" => {
+            if auth_token == lines.next().unwrap().unwrap() {
+                stream.write(b"CONNECTED\n").unwrap();
+            } else {
+                stream.write(b"BAD TOKEN\n").unwrap();
+            }
+        }
+        _ => {
+            stream.write(b"BAD REQUEST\n").unwrap();
+        }
     }
-
-    let message = format!("HTTP/1.1 200 OK\r\nContent-Length: {1}\r\n\r\n{0}", CONTENT, CONTENT_LENGTH);
-    stream.write(message.as_bytes()).expect("Failed to write response in handle_client");
+    
     stream.flush().expect("Failed to flush the stream in handle_client");
 }
 
 fn main() -> std::io::Result<()> {
+    let auth_token = generate_auth_token(32);
+    println!("Auth token: {}", auth_token);
+
     let listener = TcpListener::bind("127.0.0.1:3030")?;
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle_client(stream);
+                handle_client(stream, &auth_token);
             }
             Err(e) => {
                 eprintln!("Connection failed: {}", e);
