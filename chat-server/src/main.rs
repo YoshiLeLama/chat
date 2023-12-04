@@ -20,7 +20,12 @@ fn handle_client(mut stream: TcpStream, auth_token: &str) {
             }
         }
         "MESSAGE" => {
-            println!("{:?}: {}", sender_ip, lines.next().unwrap().unwrap());
+            if lines.next().unwrap().unwrap() == auth_token {
+                println!("{:?}: {}", sender_ip, lines.next().unwrap().unwrap());
+                stream.write(b"OK\n").unwrap();
+            } else {
+                stream.write(b"BAD TOKEN\n").unwrap();
+            }
         }
         _ => {
             stream.write(b"BAD REQUEST\n").unwrap();
